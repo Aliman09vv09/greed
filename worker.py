@@ -754,6 +754,9 @@ class Worker(threading.Thread):
         # Telegram Payments
         if self.cfg["Payments"]["CreditCard"]["credit_card_token"] != "":
             keyboard.append([telegram.KeyboardButton(self.loc.get("menu_credit_card"))])
+        # Add Crypto payment option in the menu
+        if self.cfg["Payments"]["Crypto"]["enable_crypto"]:
+            keyboard.append([telegram.KeyboardButton(self.loc.get("menu_crypto"))])
         # Keyboard: go back to the previous menu
         keyboard.append([telegram.KeyboardButton(self.loc.get("menu_cancel"))])
         # Send the keyboard to the user
@@ -772,6 +775,10 @@ class Worker(threading.Thread):
         elif selection == self.loc.get("menu_credit_card") and self.cfg["Payments"]["CreditCard"]["credit_card_token"]:
             # Go to the pay with credit card function
             self.__add_credit_cc()
+        # If the user has selected the Crypto option...
+        elif selection == self.loc.get("menu_crypto") and self.cfg["Payments"]["Crypto"]["enable_crypto"]:
+            # Go to the pay with crypto function
+            self.__add_credit_crypto()
         # If the user has selected the Cancel option...
         elif isinstance(selection, CancelSignal):
             # Send him back to the previous menu
@@ -819,6 +826,60 @@ class Worker(threading.Thread):
             return
         # Issue the payment invoice
         self.__make_payment(amount=value)
+
+    def __add_credit_crypto(self):
+        """Handle adding credit via Crypto payments."""
+        log.debug("Displaying __add_credit_crypto")
+
+        # Send a message with instructions for Crypto payment
+        self.bot.send_message(
+            self.chat.id,
+            self.loc.get(
+                "crypto_payment_instructions",
+                wallet_address=self.cfg["Payments"]["Crypto"]["wallet_address"],
+            )
+        )
+        
+        # Ask the user to provide the transaction hash
+        self.bot.send_message(self.chat.id, self.loc.get("ask_crypto_transaction_hash"))
+        transaction_hash = self.__wait_for_regex(r"[a-fA-F0-9]{64}", cancellable=True)
+
+        if isinstance(transaction_hash, CancelSignal):
+            # User canceled the operation
+            return
+
+        # Validate the transaction with the Crypto provider's API
+        response = requests.post(
+            self.cfg["Payments"]["Crypto"]["api_url"],
+            json={
+                "transaction_hash": transaction_hash,
+                "wallet_address": self.cfg["Payments"]["Crypto"]["wallet_address"],
+                "api_key": self.cfg["Payments"]["Crypto"]["api_key"],
+            }
+        )
+
+        if response.status_code == 200 and response.json().get("status") == "confirmed":
+            amount = response.json().get("amount")
+            
+            # Credit the user's wallet
+            transaction = db.Transaction(
+                user=self.user,
+                value=amount,
+                provider="Crypto",
+                notes="Crypto payment",
+            )
+            self.session.add(transaction)
+            self.user.recalculate_credit()
+            self.session.commit()
+
+            # Notify the user of success
+            self.bot.send_message(
+                self.chat.id,
+                self.loc.get("crypto_payment_success", amount=str(self.Price(amount)))
+            )
+        else:
+            # Notify the user of failure
+            self.bot.send_message(self.chat.id, self.loc.get("crypto_payment_failed"))
 
     def __make_payment(self, amount):
         # Set the invoice active invoice payload
