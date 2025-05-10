@@ -167,6 +167,9 @@ class Transaction(TableDeclarativeBase):
     telegram_charge_id = Column(String)
     # Transaction ID supplied by the payment provider
     provider_charge_id = Column(String)
+    # Add Crypto-specific fields here
+    crypto_transaction_hash = Column(String, nullable=True)  # Unique transaction hash
+    crypto_wallet_address = Column(String, nullable=True)    # Wallet address used for the transaction
     # Extra transaction data, may be required by the payment provider in case of a dispute
     payment_name = Column(String)
     payment_phone = Column(String)
