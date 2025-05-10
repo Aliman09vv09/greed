@@ -76,7 +76,10 @@ conversation_open_admin_menu = "You are a 💼 <b>Manager</b> of this store!\n" 
                                " squares in the message bar.</i>"
 
 # Conversation: select a payment method
-conversation_payment_method = "How do you want to add funds to your wallet?"
+conversation_payment_method = "How do you want to add funds to your wallet?\n" \
+                              "1. Pay via Visa/MasterCard\n" \
+                              "2. Pay via Crypto\n" \
+                              "3. Pay via ریال"
 
 # Conversation: select a product to edit
 conversation_admin_select_product = "✏️ What product do you want to edit?"
